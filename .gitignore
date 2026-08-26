@@ -1,0 +1,14 @@
+.DS_Store
+__pycache__/
+*.pyc
+
+build/
+*/build/
+
+*.uf2
+*.elf
+*.bin
+*.hex
+
+.venv/
+venv/

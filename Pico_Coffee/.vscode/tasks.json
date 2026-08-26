@@ -97,6 +97,74 @@
             "windows": {
                 "command": "${env:USERPROFILE}/.pico-sdk/openocd/0.12.0+dev/openocd.exe",
             }
+        },
+        {
+            "label": "CoffeeBar: Build + Program Pico",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-lc",
+                "cmake -S \"${workspaceFolder}\" -B \"${workspaceFolder}/build\" && cmake --build \"${workspaceFolder}/build\" --parallel 4 && scp \"${workspaceFolder}/build/Pico_Coffee.uf2\" jeffreybernath@CoffeeBar.local:/tmp/Pico_Coffee.uf2 && ssh jeffreybernath@CoffeeBar.local 'picotool load -f -v -x /tmp/Pico_Coffee.uf2'"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            },
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "CoffeeBar: Build Pico",
+            "type": "process",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build",
+                "--parallel",
+                "4"
+            ],
+            "problemMatcher": "$gcc",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            }
+        },
+        {
+            "label": "CoffeeBar: Copy Pico to Pi",
+            "type": "process",
+            "command": "scp",
+            "args": [
+                "${workspaceFolder}/build/Pico_Coffee.uf2",
+                "jeffreybernath@CoffeeBar.local:/tmp/Pico_Coffee.uf2"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "CoffeeBar: Program Pico",
+            "type": "process",
+            "command": "ssh",
+            "args": [
+                "jeffreybernath@CoffeeBar.local",
+                "picotool load /tmp/Pico_Coffee.uf2 -f -v -x"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "CoffeeBar: Build + Program Pico",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "CoffeeBar: Build Pico",
+                "CoffeeBar: Copy Pico to Pi",
+                "CoffeeBar: Program Pico"
+            ],
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
         }
-    ]
-}
+            ]
+        }
