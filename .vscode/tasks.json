@@ -104,6 +104,37 @@
                 "Git: Pull on CoffeeBar"
             ],
             "problemMatcher": []
+        }, 
+
+        {
+            "label": "Pi: Restart CoffeeBar Service",
+            "type": "process",
+            "command": "ssh",
+            "args": [
+                "jeffreybernath@CoffeeBar.local",
+                "sudo -n systemctl restart coffeebar.service && systemctl is-active coffeebar.service"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Pi: Restart Kiosk",
+            "type": "process",
+            "command": "ssh",
+            "args": [
+                "jeffreybernath@CoffeeBar.local",
+                "pkill -x chromium || true; sleep 1; XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0 nohup chromium --kiosk http://localhost:8000 >/tmp/coffeebar-chromium.log 2>&1 </dev/null &"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Pi: Deploy CoffeeBar",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Git: Sync Entire Coffee Controller",
+                "Pi: Restart CoffeeBar Service",
+                "Pi: Restart Kiosk"
+            ],
+            "problemMatcher": []
         }
     ],
 
