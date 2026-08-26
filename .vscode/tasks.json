@@ -122,10 +122,10 @@
             "command": "ssh",
             "args": [
                 "jeffreybernath@CoffeeBar.local",
-                "pkill -x chromium || true; sleep 1; XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-0 nohup chromium --kiosk http://localhost:8000 >/tmp/coffeebar-chromium.log 2>&1 </dev/null &"
+                "systemctl --user restart coffeebar-kiosk.service && systemctl --user is-active coffeebar-kiosk.service"
             ],
             "problemMatcher": []
-        },
+        }
         {
             "label": "Pi: Deploy CoffeeBar",
             "dependsOrder": "sequence",
