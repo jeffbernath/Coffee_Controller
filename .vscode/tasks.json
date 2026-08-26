@@ -1,0 +1,117 @@
+{
+    "version": "2.0.0",
+
+    "tasks": [
+        {
+            "label": "Pico: Build",
+            "type": "shell",
+            "command": "cmake -S \"${workspaceFolder}/Pico_Coffee\" -B \"${workspaceFolder}/Pico_Coffee/build\" && cmake --build \"${workspaceFolder}/Pico_Coffee/build\" --parallel 4",
+            "problemMatcher": "$gcc",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+
+        {
+            "label": "Pico: Copy to Pi",
+            "type": "process",
+            "command": "scp",
+            "args": [
+                "${workspaceFolder}/Pico_Coffee/build/Pico_Coffee.uf2",
+                "jeffreybernath@CoffeeBar.local:/tmp/Pico_Coffee.uf2"
+            ],
+            "problemMatcher": []
+        },
+
+        {
+            "label": "Pico: Program",
+            "type": "process",
+            "command": "ssh",
+            "args": [
+                "jeffreybernath@CoffeeBar.local",
+                "picotool load /tmp/Pico_Coffee.uf2 -f -v -x"
+            ],
+            "problemMatcher": []
+        },
+
+        {
+            "label": "Pico: Build + Program",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Pico: Build",
+                "Pico: Copy to Pi",
+                "Pico: Program"
+            ],
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+
+        {
+            "label": "Git: Stage Entire Project",
+            "type": "process",
+            "command": "git",
+            "args": [
+                "-C",
+                "${workspaceFolder}",
+                "add",
+                "-A"
+            ],
+            "problemMatcher": []
+        },
+
+        {
+            "label": "Git: Commit",
+            "type": "shell",
+            "command": "cd \"${workspaceFolder}\" && if git diff --cached --quiet; then echo 'No changes to commit.'; else git commit -m \"${input:commitMessage}\"; fi",
+            "problemMatcher": []
+        },
+
+        {
+            "label": "Git: Push",
+            "type": "process",
+            "command": "git",
+            "args": [
+                "-C",
+                "${workspaceFolder}",
+                "push"
+            ],
+            "problemMatcher": []
+        },
+
+        {
+            "label": "Git: Pull on CoffeeBar",
+            "type": "process",
+            "command": "ssh",
+            "args": [
+                "jeffreybernath@CoffeeBar.local",
+                "git -C /home/jeffreybernath/Coffee_Controller pull --ff-only"
+            ],
+            "problemMatcher": []
+        },
+
+        {
+            "label": "Git: Sync Entire Coffee Controller",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Git: Stage Entire Project",
+                "Git: Commit",
+                "Git: Push",
+                "Git: Pull on CoffeeBar"
+            ],
+            "problemMatcher": []
+        }
+    ],
+
+    "inputs": [
+        {
+            "id": "commitMessage",
+            "type": "promptString",
+            "description": "Coffee Controller commit message"
+        }
+    ]
+}
