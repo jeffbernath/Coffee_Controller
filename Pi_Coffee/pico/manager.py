@@ -74,9 +74,24 @@ class PicoManager:
         self._send_line(f"SET,{sequence},{name},{self.registry.to_wire_value(name, normalized)}")
         return sequence
 
-    def tare_all(self) -> int:
+    def run_action(self, name: str) -> int:
+        definition = self.registry.get(name)
+
+        if not definition:
+            raise ValueError("UNKNOWN_ACTION")
+
+        if definition.get("type") != "action":
+            raise ValueError("NOT_ACTION")
+
+        if definition.get("direction") != "command":
+            raise ValueError("NOT_COMMAND")
+
         sequence = self._next_sequence()
-        self._send_line(f"CMD,{sequence},TARE,ALL")
+
+        self._send_line(
+            f"CMD,{sequence},ACTION,{name}"
+        )
+
         return sequence
 
     def _next_sequence(self) -> int:
