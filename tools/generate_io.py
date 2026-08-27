@@ -34,8 +34,8 @@ def main() -> None:
     manifest = json.loads(args.manifest.read_text())
     items = manifest["io"]
 
-    valid_types = {"digital", "analog", "pwm", "load_cell"}
-    valid_dirs = {"input", "output"}
+    valid_types = {"digital", "analog", "pwm", "load_cell", "action"}
+    valid_dirs = {"input", "output", "command"}
     names = set()
     ids = set()
     for item in items:
@@ -58,8 +58,8 @@ def main() -> None:
         "#include <cstddef>",
         "#include <cstdint>",
         "",
-        "enum class IoType : uint8_t { DIGITAL, ANALOG, PWM, LOAD_CELL };",
-        "enum class IoDirection : uint8_t { INPUT, OUTPUT };",
+        "enum class IoType : uint8_t { DIGITAL, ANALOG, PWM, LOAD_CELL, ACTION };",
+        "enum class IoDirection : uint8_t { INPUT, OUTPUT, COMMAND };",
         "enum class IoReport : uint8_t { ON_CHANGE, PERIODIC };",
         "enum class IoPull : uint8_t { NONE, UP, DOWN };",
         "",

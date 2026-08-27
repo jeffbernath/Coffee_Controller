@@ -140,6 +140,19 @@
         "show": true
       },
       "handler": "led_pwm"
+    },
+    {
+      "id": 7,
+      "name": "TARE",
+      "type": "action",
+      "direction": "command",
+      "handler": "tare",
+      "gui": {
+        "label": "TARE",
+        "group": "controls",
+        "widget": "button",
+        "show": true
+      }
     }
   ]
 }
