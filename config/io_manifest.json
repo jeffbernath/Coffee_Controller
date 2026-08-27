@@ -1,0 +1,145 @@
+{
+  "protocol_version": 1,
+  "serial": {
+    "baud_rate": 115200,
+    "heartbeat_ms": 1000,
+    "offline_timeout_ms": 5000
+  },
+  "io": [
+    {
+      "id": 1,
+      "name": "LOAD_CELL_1_G",
+      "type": "load_cell",
+      "direction": "input",
+      "data_type": "float",
+      "units": "g",
+      "sample_rate_ms": 10,
+      "report_rate_ms": 100,
+      "report": "periodic",
+      "driver": "external_load_cell_adc",
+      "channel": 1,
+      "min": -5000.0,
+      "max": 5000.0,
+      "gui": {
+        "label": "Load Cell 1",
+        "group": "load_cells",
+        "widget": "value",
+        "decimals": 2,
+        "show": true
+      },
+      "handler": "load_cell"
+    },
+    {
+      "id": 2,
+      "name": "LOAD_CELL_2_G",
+      "type": "load_cell",
+      "direction": "input",
+      "data_type": "float",
+      "units": "g",
+      "sample_rate_ms": 10,
+      "report_rate_ms": 100,
+      "report": "periodic",
+      "driver": "external_load_cell_adc",
+      "channel": 2,
+      "min": -5000.0,
+      "max": 5000.0,
+      "gui": {
+        "label": "Load Cell 2",
+        "group": "load_cells",
+        "widget": "value",
+        "decimals": 2,
+        "show": true
+      },
+      "handler": "load_cell"
+    },
+    {
+      "id": 3,
+      "name": "DIGITAL_INPUT_1",
+      "type": "digital",
+      "direction": "input",
+      "data_type": "bool",
+      "pin": 14,
+      "active_level": "low",
+      "pull": "up",
+      "sample_rate_ms": 20,
+      "report": "on_change",
+      "gui": {
+        "label": "Digital Input 1",
+        "group": "inputs",
+        "widget": "status",
+        "true_text": "ON",
+        "false_text": "OFF",
+        "show": true
+      },
+      "handler": "gpio"
+    },
+    {
+      "id": 4,
+      "name": "LED_ENABLE",
+      "type": "digital",
+      "direction": "output",
+      "data_type": "bool",
+      "resource": "onboard_led",
+      "pin": 25,
+      "active_level": "high",
+      "default": false,
+      "safe_state": false,
+      "report": "on_change",
+      "gui": {
+        "label": "LED",
+        "group": "outputs",
+        "widget": "toggle",
+        "show": true
+      },
+      "handler": "led_enable"
+    },
+    {
+      "id": 5,
+      "name": "LED_BLINK_RATE_HZ",
+      "type": "analog",
+      "direction": "output",
+      "data_type": "float",
+      "resource": "onboard_led",
+      "units": "Hz",
+      "min": 0.0,
+      "max": 10.0,
+      "step": 0.1,
+      "default": 1.0,
+      "safe_state": 0.0,
+      "report": "on_change",
+      "gui": {
+        "label": "LED Blink Rate",
+        "group": "outputs",
+        "widget": "slider_number",
+        "decimals": 1,
+        "show": true
+      },
+      "handler": "led_blink_rate"
+    },
+    {
+      "id": 6,
+      "name": "LED_PWM_PERCENT",
+      "type": "pwm",
+      "direction": "output",
+      "data_type": "float",
+      "resource": "onboard_led",
+      "pin": 25,
+      "units": "%",
+      "pwm_frequency_hz": 1000,
+      "min": 0.0,
+      "max": 100.0,
+      "step": 1.0,
+      "default": 100.0,
+      "safe_state": 0.0,
+      "report": "on_change",
+      "gui": {
+        "label": "LED Intensity",
+        "group": "outputs",
+        "widget": "slider_number",
+        "decimals": 0,
+        "show": true
+      },
+      "handler": "led_pwm"
+    }
+  ]
+}
