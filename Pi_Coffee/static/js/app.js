@@ -1,6 +1,5 @@
 const picoStatusElement = document.getElementById("pico-status");
 const picoIndicatorElement = document.getElementById("pico-indicator");
-const tareButton = document.getElementById("tare-button");
 const loadCellGrid = document.getElementById("load-cell-grid");
 const outputControls = document.getElementById("output-controls");
 const inputStatus = document.getElementById("input-status");
@@ -177,6 +176,26 @@ function buildSliderNumber(definition) {
   outputControls.appendChild(row);
 }
 
+function buildActionButton(definition) {
+  const button = document.createElement("button");
+
+  button.className = "secondary-button";
+  button.type = "button";
+  button.textContent = definition.gui?.label ?? definition.name;
+  button.dataset.requiresPico = "true";
+  button.disabled = !picoOnline;
+
+  button.addEventListener("click", async () => {
+    await requestAction(definition.name);
+  });
+
+  if (definition.gui?.group === "load_cells") {
+    document.getElementById("load-cell-actions").appendChild(button);
+  } else {
+    outputControls.appendChild(button);
+  }
+}
+
 function buildUi() {
   loadCellGrid.replaceChildren();
   outputControls.replaceChildren();
@@ -185,7 +204,13 @@ function buildUi() {
   for (const definition of manifest.io) {
     if (definition.gui?.show === false) continue;
     const widget = definition.gui?.widget;
-    if (definition.type === "load_cell" && definition.direction === "input") {
+    if (
+      definition.type === "action" &&
+      definition.direction === "command" &&
+      widget === "button"
+    ) {
+      buildActionButton(definition);
+    } else if (definition.type === "load_cell" && definition.direction === "input") {
       buildLoadCell(definition);
     } else if (definition.direction === "input" && widget === "status") {
       buildDigitalInput(definition);
@@ -315,17 +340,31 @@ function connectWebSocket() {
   socket.onerror = () => socket.close();
 }
 
-tareButton.addEventListener("click", async () => {
-  showMessage("Requesting tare for both load cells...");
+async function requestAction(name) {
+  showMessage(`Requesting ${name}...`);
+
   try {
-    const response = await fetch("/api/tare", { method: "POST" });
+    const response = await fetch(
+      `/api/action/${encodeURIComponent(name)}`,
+      {
+        method: "POST"
+      }
+    );
+
     const data = await response.json();
-    if (!response.ok) throw new Error(data.detail ?? `HTTP ${response.status}`);
-    showMessage(`Tare request sent (command ${data.sequence}).`);
+
+    if (!response.ok) {
+      throw new Error(data.detail ?? `HTTP ${response.status}`);
+    }
+
+    showMessage(
+      `${name} request sent. Waiting for Pico confirmation (command ${data.sequence}).`
+    );
+
   } catch (error) {
-    showMessage(error.message ?? "Tare failed", true);
+    showMessage(error.message ?? `${name} failed`, true);
   }
-});
+}
 
 async function init() {
   const response = await fetch("/api/io/manifest");

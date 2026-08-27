@@ -148,7 +148,7 @@
       "direction": "command",
       "handler": "tare",
       "gui": {
-        "label": "TARE",
+        "label": "TARE BOTH",
         "group": "controls",
         "widget": "button",
         "show": true
