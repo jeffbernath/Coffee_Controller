@@ -93,14 +93,28 @@ async def set_io(io_name: str, request: IoWriteRequest):
     return {"requested": True, "sequence": sequence, "name": io_name}
 
 
-@app.post("/api/tare")
-async def tare():
+@app.post("/api/action/{action_name}")
+async def run_action(action_name: str):
     try:
-        sequence = pico.tare_all()
-    except ConnectionError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return {"requested": True, "sequence": sequence}
+        sequence = pico.run_action(action_name)
 
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc)
+        ) from exc
+
+    except ConnectionError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc)
+        ) from exc
+
+    return {
+        "requested": True,
+        "sequence": sequence,
+        "name": action_name
+    }
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):

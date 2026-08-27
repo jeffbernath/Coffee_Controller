@@ -143,13 +143,14 @@
     },
     {
       "id": 7,
-      "name": "TARE",
+      "name": "TARE_BOTH",
       "type": "action",
       "direction": "command",
-      "handler": "tare",
+      "data_type": "none",
+      "handler": "tare_all",
       "gui": {
         "label": "TARE BOTH",
-        "group": "controls",
+        "group": "load_cells",
         "widget": "button",
         "show": true
       }

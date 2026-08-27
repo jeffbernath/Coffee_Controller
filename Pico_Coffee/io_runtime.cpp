@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cstring>
 
 #include "hardware/clocks.h"
 #include "hardware/pwm.h"
@@ -390,6 +391,60 @@ bool io_runtime_tare_all(char *error, std::size_t error_size)
         return false;
     }
     return true;
+}
+
+bool io_runtime_action(
+    const char *name,
+    char *error,
+    std::size_t error_size)
+{
+    std::size_t index = 0;
+
+    const IoDefinition *definition =
+        find_definition(name, &index);
+
+    if (!definition) {
+        copy_error(
+            error,
+            error_size,
+            "UNKNOWN_ACTION");
+        return false;
+    }
+
+    if (definition->type != IoType::ACTION) {
+        copy_error(
+            error,
+            error_size,
+            "NOT_ACTION");
+        return false;
+    }
+
+    if (definition->direction != IoDirection::COMMAND) {
+        copy_error(
+            error,
+            error_size,
+            "NOT_COMMAND");
+        return false;
+    }
+
+    //
+    // TARE BOTH
+    //
+    if (std::strcmp(
+            definition->handler,
+            "tare_all") == 0) {
+
+        return io_runtime_tare_all(
+            error,
+            error_size);
+    }
+
+    copy_error(
+        error,
+        error_size,
+        "ACTION_HANDLER_NOT_IMPLEMENTED");
+
+    return false;
 }
 
 void io_runtime_report_snapshot()
