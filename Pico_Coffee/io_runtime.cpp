@@ -396,24 +396,18 @@ bool io_runtime_tare_all(char *error, std::size_t error_size)
 }
 
 
-bool io_runtime_calibrate_load_cell(
-    uint8_t channel,
+bool io_runtime_calibrate_scale(
     float known_grams,
     float &counts_per_gram,
     char *error,
     std::size_t error_size)
 {
-    if (channel < 1 || channel > 2) {
-        copy_error(error, error_size, "INVALID_LOAD_CELL_CHANNEL");
-        return false;
-    }
-
     if (!std::isfinite(known_grams) || known_grams <= 0.0f) {
         copy_error(error, error_size, "INVALID_CALIBRATION_WEIGHT");
         return false;
     }
 
-    if (!load_cell_calibrate(channel, known_grams, counts_per_gram)) {
+    if (!load_cells_calibrate_scale(known_grams, counts_per_gram)) {
         copy_error(error, error_size, "CALIBRATION_FAILED_TARE_FIRST");
         return false;
     }

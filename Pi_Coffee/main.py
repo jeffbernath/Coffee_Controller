@@ -140,15 +140,13 @@ async def tare_scale():
     return {"requested": True, "sequence": sequence}
 
 
-@app.post("/api/load-cell/{channel}/calibrate")
-async def calibrate_load_cell(channel: int, request: LoadCellCalibrationRequest):
-    if channel not in (1, 2):
-        raise HTTPException(status_code=400, detail="INVALID_LOAD_CELL_CHANNEL")
+@app.post("/api/scale/calibrate")
+async def calibrate_scale(request: LoadCellCalibrationRequest):
     if request.known_grams <= 0:
         raise HTTPException(status_code=400, detail="KNOWN_WEIGHT_MUST_BE_POSITIVE")
 
     try:
-        sequence = pico.calibrate_load_cell(channel, request.known_grams)
+        sequence = pico.calibrate_scale(request.known_grams)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ConnectionError as exc:
@@ -157,7 +155,6 @@ async def calibrate_load_cell(channel: int, request: LoadCellCalibrationRequest)
     return {
         "requested": True,
         "sequence": sequence,
-        "channel": channel,
         "known_grams": request.known_grams,
     }
 

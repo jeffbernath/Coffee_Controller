@@ -11,18 +11,14 @@ namespace {
 // -----------------------------------------------------------------------------
 // HX711 pin assignment
 // -----------------------------------------------------------------------------
-// Two independent HX711 boards are used so each load cell has its own clock
-// and data connection.
 constexpr uint HX711_1_DOUT_PIN = 2;
 constexpr uint HX711_1_SCK_PIN  = 3;
 constexpr uint HX711_2_DOUT_PIN = 4;
 constexpr uint HX711_2_SCK_PIN  = 5;
 
-// Put measured calibration factors here later if you want calibration to
-// survive a Pico power cycle without the Pi re-sending it.
-// Leave at 0.0f to require runtime calibration.
-constexpr float HX711_1_DEFAULT_COUNTS_PER_GRAM = 0.0f;
-constexpr float HX711_2_DEFAULT_COUNTS_PER_GRAM = 0.0f;
+// One calibration factor is used for the complete two-load-cell scale.
+// Leave this at 0.0f to require a runtime calibration after power-up.
+constexpr float HX711_SCALE_DEFAULT_COUNTS_PER_GRAM = 0.0f;
 
 constexpr uint32_t HX711_READY_TIMEOUT_MS = 500;
 constexpr unsigned HX711_TARE_SAMPLES = 10;
@@ -38,8 +34,6 @@ struct Hx711State {
     int32_t tare_offset = 0;
     bool tare_valid = false;
 
-    float counts_per_gram = 0.0f;
-
     float last_grams = 0.0f;
     bool last_grams_valid = false;
 
@@ -48,11 +42,11 @@ struct Hx711State {
 };
 
 Hx711State g_channels[] = {
-    {HX711_1_DOUT_PIN, HX711_1_SCK_PIN, false, 0, false,
-     HX711_1_DEFAULT_COUNTS_PER_GRAM, 0.0f, false, 0.0f, false},
-    {HX711_2_DOUT_PIN, HX711_2_SCK_PIN, false, 0, false,
-     HX711_2_DEFAULT_COUNTS_PER_GRAM, 0.0f, false, 0.0f, false},
+    {HX711_1_DOUT_PIN, HX711_1_SCK_PIN},
+    {HX711_2_DOUT_PIN, HX711_2_SCK_PIN},
 };
+
+float g_scale_counts_per_gram = HX711_SCALE_DEFAULT_COUNTS_PER_GRAM;
 
 Hx711State *get_channel(uint8_t channel)
 {
@@ -81,7 +75,6 @@ void init_channel(Hx711State &state)
 
 bool is_ready(const Hx711State &state)
 {
-    // HX711 DOUT goes LOW when a conversion is ready.
     return gpio_get(state.dout_pin) == 0;
 }
 
@@ -107,9 +100,8 @@ bool read_raw_ready(Hx711State &state, int32_t &raw)
 
     uint32_t value = 0;
 
-    // Keep each SCK HIGH pulse comfortably below the HX711 power-down
-    // threshold. Disabling interrupts prevents an interrupt from stretching a
-    // HIGH pulse beyond 60 us.
+    // Keep SCK HIGH pulses below the HX711 power-down threshold. Disabling
+    // interrupts prevents an interrupt from stretching a HIGH pulse >60 us.
     const uint32_t irq_state = save_and_disable_interrupts();
 
     for (int bit = 0; bit < 24; ++bit) {
@@ -130,7 +122,6 @@ bool read_raw_ready(Hx711State &state, int32_t &raw)
 
     restore_interrupts(irq_state);
 
-    // Sign-extend the HX711 24-bit two's-complement result to int32_t.
     if ((value & 0x00800000u) != 0) {
         value |= 0xFF000000u;
     }
@@ -173,6 +164,13 @@ void reset_filter(Hx711State &state)
     state.last_grams_valid = false;
 }
 
+void reset_all_filters()
+{
+    for (Hx711State &state : g_channels) {
+        reset_filter(state);
+    }
+}
+
 } // namespace
 
 void load_cells_init()
@@ -191,15 +189,12 @@ bool load_cell_read_grams(uint8_t channel, float &grams)
 
     init_channel(*state);
 
-    // A zero calibration factor means that calling the value "grams" would be
-    // misleading. The channel remains unavailable until calibrated.
-    if (std::fabs(state->counts_per_gram) < MIN_VALID_CALIBRATION) {
+    // Both channels share the scale factor. Until the whole scale has been
+    // calibrated, neither channel can truthfully report grams.
+    if (std::fabs(g_scale_counts_per_gram) < MIN_VALID_CALIBRATION) {
         return false;
     }
 
-    // If no fresh conversion is ready, keep returning the most recent valid
-    // value. This prevents io_runtime from marking the scale unavailable in
-    // between HX711 conversions (especially at the common 10 SPS rate).
     if (!is_ready(*state)) {
         if (!state->last_grams_valid) {
             return false;
@@ -214,7 +209,10 @@ bool load_cell_read_grams(uint8_t channel, float &grams)
     }
 
     const int32_t net_counts = raw - state->tare_offset;
-    const float new_grams = static_cast<float>(net_counts) / state->counts_per_gram;
+
+    // This is this load cell's contribution to the total platform weight.
+    // The GUI adds the two channel contributions together.
+    const float new_grams = static_cast<float>(net_counts) / g_scale_counts_per_gram;
 
     if (!std::isfinite(new_grams)) {
         return false;
@@ -253,35 +251,38 @@ bool load_cell_tare(uint8_t channel)
     return true;
 }
 
-bool load_cell_calibrate(uint8_t channel, float known_grams, float &counts_per_gram)
+bool load_cells_calibrate_scale(float known_grams, float &counts_per_gram)
 {
-    Hx711State *state = get_channel(channel);
-    if (!state || !std::isfinite(known_grams) || known_grams <= 0.0f) {
+    if (!std::isfinite(known_grams) || known_grams <= 0.0f) {
         return false;
     }
 
-    init_channel(*state);
-
-    // Calibration is referenced to the current tare. This prevents an
-    // arbitrary unloaded offset from becoming part of the scale factor.
-    if (!state->tare_valid) {
-        return false;
+    // Calibration must use the same zero reference for both load cells.
+    for (Hx711State &state : g_channels) {
+        init_channel(state);
+        if (!state.tare_valid) {
+            return false;
+        }
     }
 
-    int32_t average = 0;
-    if (!average_raw(*state, HX711_CALIBRATION_SAMPLES, average)) {
-        return false;
+    int64_t combined_net_counts = 0;
+
+    for (Hx711State &state : g_channels) {
+        int32_t average = 0;
+        if (!average_raw(state, HX711_CALIBRATION_SAMPLES, average)) {
+            return false;
+        }
+        combined_net_counts += static_cast<int64_t>(average) - state.tare_offset;
     }
 
-    const int32_t net_counts = average - state->tare_offset;
-    const float factor = static_cast<float>(net_counts) / known_grams;
+    const float factor = static_cast<float>(combined_net_counts) / known_grams;
 
     if (!std::isfinite(factor) || std::fabs(factor) < MIN_VALID_CALIBRATION) {
         return false;
     }
 
-    state->counts_per_gram = factor;
+    g_scale_counts_per_gram = factor;
     counts_per_gram = factor;
-    reset_filter(*state);
+    reset_all_filters();
     return true;
 }

@@ -8,8 +8,7 @@ const totalWeightElement = document.getElementById("total-weight");
 const totalWeightStatusElement = document.getElementById("total-weight-status");
 const tareButton = document.getElementById("tare-button");
 const calibrationWeightInput = document.getElementById("calibration-weight");
-const calibrateCell1Button = document.getElementById("calibrate-cell-1");
-const calibrateCell2Button = document.getElementById("calibrate-cell-2");
+const calibrateScaleButton = document.getElementById("calibrate-scale");
 const calibrationStatusElement = document.getElementById("calibration-status");
 
 let manifest = null;
@@ -34,7 +33,7 @@ function updateTotalWeight() {
 
   if (!ready) {
     totalWeightElement.textContent = "--";
-    totalWeightStatusElement.textContent = "Waiting for both calibrated load cells";
+    totalWeightStatusElement.textContent = "Waiting for scale calibration";
     totalWeightStatusElement.classList.add("unavailable");
     return;
   }
@@ -276,7 +275,7 @@ function updateIo(name, value, available = true) {
   });
 
   document.querySelectorAll(`[data-io-availability='${name}']`).forEach((element) => {
-    element.textContent = available ? "Live" : "Load-cell driver not configured";
+    element.textContent = available ? "Live" : "Waiting for scale calibration";
     element.classList.toggle("unavailable", !available);
   });
 
@@ -357,8 +356,8 @@ function connectWebSocket() {
     } else if (message.type === "command_error") {
       showMessage(`${message.target}: ${message.error}`, true);
     } else if (message.type === "calibration") {
-      calibrationStatusElement.textContent = `Cell ${message.channel}: ${Number(message.counts_per_gram).toFixed(6)} counts/g`;
-      showMessage(`Load cell ${message.channel} calibrated.`);
+      calibrationStatusElement.textContent = `Scale: ${Number(message.counts_per_gram).toFixed(6)} counts/g`;
+      showMessage("Scale calibrated.");
     } else if (message.type === "ack") {
       showMessage(`Pico accepted command ${message.sequence}.`);
     }
@@ -411,32 +410,31 @@ async function requestTare() {
   }
 }
 
-async function requestCalibration(channel) {
+async function requestCalibration() {
   const knownGrams = Number(calibrationWeightInput.value);
   if (!Number.isFinite(knownGrams) || knownGrams <= 0) {
     showMessage("Enter a valid known calibration weight.", true);
     return;
   }
 
-  showMessage(`Calibrating load cell ${channel} with ${knownGrams.toFixed(1)} g...`);
+  showMessage(`Calibrating scale with ${knownGrams.toFixed(1)} g...`);
   try {
-    const response = await fetch(`/api/load-cell/${channel}/calibrate`, {
+    const response = await fetch("/api/scale/calibrate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ known_grams: knownGrams }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail ?? `HTTP ${response.status}`);
-    showMessage(`Calibration request sent for load cell ${channel} (command ${data.sequence}).`);
+    showMessage(`Scale calibration request sent (command ${data.sequence}).`);
   } catch (error) {
-    showMessage(error.message ?? `Load cell ${channel} calibration failed`, true);
+    showMessage(error.message ?? "Scale calibration failed", true);
   }
 }
 
 function installScaleControls() {
   tareButton.addEventListener("click", requestTare);
-  calibrateCell1Button.addEventListener("click", () => requestCalibration(1));
-  calibrateCell2Button.addEventListener("click", () => requestCalibration(2));
+  calibrateScaleButton.addEventListener("click", requestCalibration);
 }
 
 async function init() {

@@ -20,7 +20,7 @@ Typical four-wire load cell wiring uses:
 - A+ = signal positive
 - A- = signal negative
 
-Wire colors are not standardized, so verify the load-cell datasheet before connecting.
+Wire colors are not standardized, so verify the load-cell datasheet before connecting. Both load-cell signals should change in the same direction when weight is added to the platform.
 
 ## Tare
 
@@ -34,43 +34,44 @@ The legacy command also still works:
 
 Tare averages 10 HX711 conversions for each load cell.
 
-## Calibration
+## Scale calibration
 
-The firmware will not label raw ADC counts as grams. After a fresh build, each channel must be calibrated unless a compile-time calibration factor has been entered in `load_cells.cpp`.
+The two HX711/load-cell channels are treated as one physical scale. The firmware uses one shared counts-per-gram factor calculated from the combined raw change of both load cells.
 
-1. Make sure both scales are empty.
-2. Tare both scales.
-3. Put a known calibration weight on load cell 1.
-4. Send a calibration command using the weight in grams.
-5. Repeat for load cell 2.
+1. Make sure the platform is empty.
+2. Tare the scale.
+3. Put one known calibration weight on the platform.
+4. Send one scale calibration command using the known weight in grams.
 
 Example using a 500 g calibration weight:
 
     CMD,30,ACTION,TARE_BOTH
-    CMD,31,CALIBRATE,1,500.0
-    CMD,32,CALIBRATE,2,500.0
+    CMD,31,CALIBRATE_SCALE,500.0
 
-A successful calibration returns a line like:
+A successful calibration returns:
 
-    CAL,31,1,725.123456
+    CAL,31,SCALE,725.123456
     ACK,31
 
-The last number is the measured counts-per-gram factor.
+The last number is the combined scale counts-per-gram factor.
 
-## Making calibration survive power cycles
+After calibration, each load-cell channel reports its contribution to the total platform weight. The GUI adds both contributions to display the total weight.
 
-Runtime tare and runtime calibration are currently stored in RAM. The tare should normally be performed whenever needed. If you want a calibration factor to be available immediately after every reboot, copy the measured factors into these constants in `load_cells.cpp`:
+## Power cycles
 
-    HX711_1_DEFAULT_COUNTS_PER_GRAM
-    HX711_2_DEFAULT_COUNTS_PER_GRAM
+The runtime scale calibration factor is currently stored in Pico RAM. It must be calibrated again after Pico power is removed or reset. Tare can be performed at any time without losing the current calibration factor.
 
-A future version can store calibration factors in Pico flash or have the Raspberry Pi send them automatically during startup.
+If you later want a fixed compile-time calibration factor, enter the measured value in `HX711_SCALE_DEFAULT_COUNTS_PER_GRAM` in `load_cells.cpp`. A future version can store the factor in Pico flash automatically.
 
 ## Data reporting
 
 After calibration, the existing runtime reports:
 
-    IO,LOAD_CELL_1_G,<grams>
-    IO,LOAD_CELL_2_G,<grams>
+    IO,LOAD_CELL_1_G,<contribution_grams>
+    IO,LOAD_CELL_2_G,<contribution_grams>
+
+The GUI displays:
+
+    total_weight = LOAD_CELL_1_G + LOAD_CELL_2_G
 
 The existing manifest report interval is 100 ms. The HX711 driver reads new conversions whenever they are ready and applies a small exponential filter before reporting weight.

@@ -57,7 +57,7 @@
           <h2 id="calibration-title">Calibration</h2>
         </div>
       </div>
-      <p class="calibration-help">Tare the empty scale first. Then place a known weight on the load cell being calibrated and enter that weight below.</p>
+      <p class="calibration-help">Tare the empty scale first. Then place one known weight on the platform and calibrate the complete scale.</p>
       <div class="calibration-controls">
         <label class="calibration-weight">
           <span>Known weight</span>
@@ -66,10 +66,9 @@
             <span>g</span>
           </span>
         </label>
-        <button id="calibrate-cell-1" class="secondary-button" type="button" data-requires-pico="true" disabled>Calibrate Cell 1</button>
-        <button id="calibrate-cell-2" class="secondary-button" type="button" data-requires-pico="true" disabled>Calibrate Cell 2</button>
+        <button id="calibrate-scale" class="secondary-button" type="button" data-requires-pico="true" disabled>Calibrate Scale</button>
       </div>
-      <div id="calibration-status" class="calibration-status">Calibration factors are stored in Pico RAM until power is removed.</div>
+      <div id="calibration-status" class="calibration-status">The scale calibration factor is stored in Pico RAM until power is removed.</div>
     </section>
 
     <section class="panel" aria-labelledby="outputs-title">
