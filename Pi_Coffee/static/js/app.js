@@ -155,7 +155,11 @@ function openTouchKeyboard(input) {
 
   touchInputTarget = input;
   touchInputOriginalValue = input.value ?? "";
-  touchInputDraft = touchInputOriginalValue;
+  // Numeric fields start blank so the user can immediately enter a new value.
+  // Cancel still restores the value that was present before the keypad opened.
+  touchInputDraft = touchKeyboardMode(input) === "number"
+    ? ""
+    : touchInputOriginalValue;
   touchKeyboardShift = false;
 
   const label = input.labels?.[0]?.textContent?.trim();
@@ -175,6 +179,11 @@ function closeTouchKeyboard(commit) {
     let nextValue = touchInputDraft;
 
     if (input.type === "number") {
+      if (nextValue.trim() === "") {
+        showMessage("Enter a valid number.", true);
+        return;
+      }
+
       const numeric = Number(nextValue);
       if (!Number.isFinite(numeric)) {
         showMessage("Enter a valid number.", true);
