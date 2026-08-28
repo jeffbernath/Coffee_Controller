@@ -64,6 +64,8 @@ target_include_directories(Pico_Coffee PRIVATE
 
 target_link_libraries(Pico_Coffee
     pico_stdlib
+    pico_flash
+    hardware_flash
     hardware_pwm
     hardware_clocks
 )
