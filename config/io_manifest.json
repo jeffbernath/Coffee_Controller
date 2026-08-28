@@ -24,7 +24,7 @@
         "label": "Load Cell 1",
         "group": "load_cells",
         "widget": "value",
-        "decimals": 2,
+        "decimals": 1,
         "show": true
       },
       "handler": "load_cell"
@@ -47,7 +47,7 @@
         "label": "Load Cell 2",
         "group": "load_cells",
         "widget": "value",
-        "decimals": 2,
+        "decimals": 1,
         "show": true
       },
       "handler": "load_cell"

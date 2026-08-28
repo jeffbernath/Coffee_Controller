@@ -308,6 +308,11 @@ function installTouchKeyboard() {
 function formatValue(definition, value) {
   if (value === null || value === undefined) return "--";
   if (definition.data_type === "bool") return value ? "ON" : "OFF";
+
+  if (definition.type === "load_cell") {
+    return Number(value).toFixed(1);
+  }
+
   const decimals = definition.gui?.decimals ?? 1;
   return Number(value).toFixed(decimals);
 }
