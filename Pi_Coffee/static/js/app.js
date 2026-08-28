@@ -18,6 +18,284 @@ const ioAvailable = {};
 let socket = null;
 let reconnectTimer = null;
 
+
+// -----------------------------------------------------------------------------
+// Touch keyboard / keypad
+// -----------------------------------------------------------------------------
+let touchInputTarget = null;
+let touchInputOriginalValue = "";
+let touchInputDraft = "";
+let touchKeyboardShift = false;
+let touchKeyboardOverlay = null;
+let touchKeyboardPanel = null;
+let touchKeyboardTitle = null;
+let touchKeyboardDisplay = null;
+let touchKeyboardKeys = null;
+
+function isTouchKeyboardInput(element) {
+  if (!(element instanceof HTMLInputElement)) return false;
+  if (element.disabled || element.readOnly) return false;
+  if (element.dataset.touchKeyboard === "off") return false;
+
+  return ["number", "text", "search", "email", "tel", "password"].includes(element.type);
+}
+
+function touchKeyboardMode(input) {
+  return input.type === "number" ? "number" : "text";
+}
+
+function numberInputAllowsDecimal(input) {
+  if (input.type !== "number") return false;
+  if (!input.step || input.step === "any") return true;
+  const step = Number(input.step);
+  return !Number.isInteger(step);
+}
+
+function numberInputAllowsNegative(input) {
+  if (input.type !== "number") return false;
+  if (input.min === "") return true;
+  const min = Number(input.min);
+  return Number.isFinite(min) && min < 0;
+}
+
+function createTouchKey(label, value = label, className = "") {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `touch-key ${className}`.trim();
+  button.textContent = label;
+  button.dataset.touchKeyValue = value;
+  return button;
+}
+
+function buildNumberKeys(input) {
+  const fragment = document.createDocumentFragment();
+  const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+  keys.forEach((key) => fragment.appendChild(createTouchKey(key)));
+
+  if (numberInputAllowsDecimal(input)) {
+    fragment.appendChild(createTouchKey(".", "."));
+  } else if (numberInputAllowsNegative(input)) {
+    fragment.appendChild(createTouchKey("−", "-"));
+  } else {
+    fragment.appendChild(createTouchKey("Clear", "CLEAR", "touch-key-wide touch-key-secondary"));
+  }
+
+  fragment.appendChild(createTouchKey("0"));
+  fragment.appendChild(createTouchKey("⌫", "BACKSPACE", "touch-key-secondary"));
+
+  if (numberInputAllowsDecimal(input) && numberInputAllowsNegative(input)) {
+    fragment.appendChild(createTouchKey("−", "-", "touch-key-secondary"));
+  }
+
+  return fragment;
+}
+
+function buildTextKeys(input) {
+  const fragment = document.createDocumentFragment();
+  const rows = [
+    "QWERTYUIOP",
+    "ASDFGHJKL",
+    "ZXCVBNM",
+  ];
+
+  rows.forEach((row, rowIndex) => {
+    const rowElement = document.createElement("div");
+    rowElement.className = "touch-key-row";
+
+    if (rowIndex === 2) {
+      rowElement.appendChild(createTouchKey("Shift", "SHIFT", "touch-key-secondary touch-key-shift"));
+    }
+
+    [...row].forEach((character) => {
+      const visible = touchKeyboardShift ? character : character.toLowerCase();
+      rowElement.appendChild(createTouchKey(visible, visible));
+    });
+
+    if (rowIndex === 2) {
+      rowElement.appendChild(createTouchKey("⌫", "BACKSPACE", "touch-key-secondary"));
+    }
+
+    fragment.appendChild(rowElement);
+  });
+
+  const utilityRow = document.createElement("div");
+  utilityRow.className = "touch-key-row touch-key-row-utility";
+
+  if (input.type === "email") {
+    utilityRow.appendChild(createTouchKey("@", "@", "touch-key-secondary"));
+    utilityRow.appendChild(createTouchKey(".", ".", "touch-key-secondary"));
+  }
+
+  utilityRow.appendChild(createTouchKey("Space", " ", "touch-key-space"));
+  utilityRow.appendChild(createTouchKey("Clear", "CLEAR", "touch-key-secondary"));
+  fragment.appendChild(utilityRow);
+
+  return fragment;
+}
+
+function renderTouchKeyboard() {
+  if (!touchInputTarget || !touchKeyboardKeys) return;
+
+  touchKeyboardDisplay.textContent = touchInputTarget.type === "password"
+    ? "•".repeat(touchInputDraft.length)
+    : (touchInputDraft || " ");
+
+  touchKeyboardKeys.replaceChildren();
+  if (touchKeyboardMode(touchInputTarget) === "number") {
+    touchKeyboardKeys.className = "touch-keyboard-keys numeric";
+    touchKeyboardKeys.appendChild(buildNumberKeys(touchInputTarget));
+  } else {
+    touchKeyboardKeys.className = "touch-keyboard-keys text";
+    touchKeyboardKeys.appendChild(buildTextKeys(touchInputTarget));
+  }
+}
+
+function openTouchKeyboard(input) {
+  if (!isTouchKeyboardInput(input)) return;
+
+  touchInputTarget = input;
+  touchInputOriginalValue = input.value ?? "";
+  touchInputDraft = touchInputOriginalValue;
+  touchKeyboardShift = false;
+
+  const label = input.labels?.[0]?.textContent?.trim();
+  touchKeyboardTitle.textContent = label || input.getAttribute("aria-label") || "Enter value";
+  touchKeyboardPanel.dataset.mode = touchKeyboardMode(input);
+  touchKeyboardOverlay.hidden = false;
+  document.body.classList.add("touch-keyboard-open");
+  renderTouchKeyboard();
+}
+
+function closeTouchKeyboard(commit) {
+  if (!touchInputTarget) return;
+
+  const input = touchInputTarget;
+
+  if (commit) {
+    let nextValue = touchInputDraft;
+
+    if (input.type === "number") {
+      const numeric = Number(nextValue);
+      if (!Number.isFinite(numeric)) {
+        showMessage("Enter a valid number.", true);
+        return;
+      }
+
+      let clamped = numeric;
+      if (input.min !== "" && Number.isFinite(Number(input.min))) {
+        clamped = Math.max(Number(input.min), clamped);
+      }
+      if (input.max !== "" && Number.isFinite(Number(input.max))) {
+        clamped = Math.min(Number(input.max), clamped);
+      }
+      nextValue = String(clamped);
+    }
+
+    input.value = nextValue;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  } else {
+    input.value = touchInputOriginalValue;
+  }
+
+  touchKeyboardOverlay.hidden = true;
+  document.body.classList.remove("touch-keyboard-open");
+  touchInputTarget = null;
+  touchInputDraft = "";
+}
+
+function handleTouchKey(value) {
+  if (!touchInputTarget) return;
+
+  if (value === "BACKSPACE") {
+    touchInputDraft = touchInputDraft.slice(0, -1);
+  } else if (value === "CLEAR") {
+    touchInputDraft = "";
+  } else if (value === "SHIFT") {
+    touchKeyboardShift = !touchKeyboardShift;
+    renderTouchKeyboard();
+    return;
+  } else if (touchInputTarget.type === "number") {
+    if (value === ".") {
+      if (!touchInputDraft.includes(".")) {
+        touchInputDraft = touchInputDraft === "" || touchInputDraft === "-"
+          ? `${touchInputDraft}0.`
+          : `${touchInputDraft}.`;
+      }
+    } else if (value === "-") {
+      touchInputDraft = touchInputDraft.startsWith("-")
+        ? touchInputDraft.slice(1)
+        : `-${touchInputDraft}`;
+    } else {
+      touchInputDraft += value;
+    }
+  } else {
+    touchInputDraft += value;
+    if (touchKeyboardShift && /^[A-Z]$/.test(value)) {
+      touchKeyboardShift = false;
+    }
+  }
+
+  renderTouchKeyboard();
+}
+
+function installTouchKeyboard() {
+  touchKeyboardOverlay = document.createElement("div");
+  touchKeyboardOverlay.className = "touch-keyboard-overlay";
+  touchKeyboardOverlay.hidden = true;
+  touchKeyboardOverlay.innerHTML = `
+    <section class="touch-keyboard-panel" role="dialog" aria-modal="true" aria-labelledby="touch-keyboard-title">
+      <div class="touch-keyboard-header">
+        <div>
+          <p class="eyebrow">TOUCH INPUT</p>
+          <h2 id="touch-keyboard-title">Enter value</h2>
+        </div>
+        <button type="button" class="touch-keyboard-close" data-touch-action="cancel" aria-label="Cancel">×</button>
+      </div>
+      <div class="touch-keyboard-display" aria-live="polite"></div>
+      <div class="touch-keyboard-keys"></div>
+      <div class="touch-keyboard-actions">
+        <button type="button" class="secondary-button touch-cancel" data-touch-action="cancel">Cancel</button>
+        <button type="button" class="secondary-button touch-ok" data-touch-action="ok">OK</button>
+      </div>
+    </section>`;
+
+  document.body.appendChild(touchKeyboardOverlay);
+  touchKeyboardPanel = touchKeyboardOverlay.querySelector(".touch-keyboard-panel");
+  touchKeyboardTitle = touchKeyboardOverlay.querySelector("#touch-keyboard-title");
+  touchKeyboardDisplay = touchKeyboardOverlay.querySelector(".touch-keyboard-display");
+  touchKeyboardKeys = touchKeyboardOverlay.querySelector(".touch-keyboard-keys");
+
+  touchKeyboardOverlay.addEventListener("click", (event) => {
+    const key = event.target.closest("[data-touch-key-value]");
+    if (key) {
+      handleTouchKey(key.dataset.touchKeyValue);
+      return;
+    }
+
+    const action = event.target.closest("[data-touch-action]")?.dataset.touchAction;
+    if (action === "ok") closeTouchKeyboard(true);
+    if (action === "cancel") closeTouchKeyboard(false);
+  });
+
+  document.addEventListener("pointerdown", (event) => {
+    const input = event.target.closest("input");
+    if (!isTouchKeyboardInput(input)) return;
+
+    // Keep Chromium / the desktop from opening a second on-screen keyboard.
+    event.preventDefault();
+    input.setAttribute("inputmode", "none");
+    input.blur();
+    openTouchKeyboard(input);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (touchKeyboardOverlay.hidden) return;
+    if (event.key === "Escape") closeTouchKeyboard(false);
+    if (event.key === "Enter") closeTouchKeyboard(true);
+  });
+}
+
 function formatValue(definition, value) {
   if (value === null || value === undefined) return "--";
   if (definition.data_type === "bool") return value ? "ON" : "OFF";
@@ -452,5 +730,7 @@ async function init() {
   connectWebSocket();
   setInterval(refreshStatus, 2000);
 }
+
+installTouchKeyboard();
 
 init().catch((error) => showMessage(error.message, true));
