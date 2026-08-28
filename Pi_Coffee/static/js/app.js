@@ -326,7 +326,7 @@ function updateTotalWeight() {
   }
 
   const total = Number(ioState.LOAD_CELL_1_G) + Number(ioState.LOAD_CELL_2_G);
-  totalWeightElement.textContent = total.toFixed(2);
+  totalWeightElement.textContent = total.toFixed(1);
   totalWeightStatusElement.textContent = "Live";
   totalWeightStatusElement.classList.remove("unavailable");
 }
