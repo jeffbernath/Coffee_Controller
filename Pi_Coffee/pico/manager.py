@@ -34,6 +34,7 @@ class PicoManager:
         self._last_error: str | None = None
         self._firmware_version: str | None = None
         self._last_sync_monotonic = 0.0
+        self._calibration_counts_per_gram: dict[int, float | None] = {1: None, 2: None}
 
         self._io: dict[str, Any] = {item["name"]: None for item in registry.items}
         self._available: dict[str, bool] = {item["name"]: True for item in registry.items}
@@ -66,6 +67,7 @@ class PicoManager:
                 "last_error": self._last_error,
                 "io": dict(self._io),
                 "available": dict(self._available),
+                "calibration_counts_per_gram": dict(self._calibration_counts_per_gram),
             }
 
     def set_output(self, name: str, value: Any) -> int:
@@ -92,6 +94,21 @@ class PicoManager:
             f"CMD,{sequence},ACTION,{name}"
         )
 
+        return sequence
+
+    def tare_all(self) -> int:
+        sequence = self._next_sequence()
+        self._send_line(f"CMD,{sequence},ACTION,TARE_BOTH")
+        return sequence
+
+    def calibrate_load_cell(self, channel: int, known_grams: float) -> int:
+        if channel not in (1, 2):
+            raise ValueError("INVALID_LOAD_CELL_CHANNEL")
+        if known_grams <= 0:
+            raise ValueError("KNOWN_WEIGHT_MUST_BE_POSITIVE")
+
+        sequence = self._next_sequence()
+        self._send_line(f"CMD,{sequence},CALIBRATE,{channel},{known_grams:.3f}")
         return sequence
 
     def _next_sequence(self) -> int:
@@ -216,6 +233,25 @@ class PicoManager:
                 self._available[name] = available
                 self._last_message_monotonic = now
             self.events.put({"type": "io_status", "name": name, "available": available, "status": status})
+            return
+
+        if message_type == "CAL" and len(parts) >= 4:
+            try:
+                channel = int(parts[2])
+                counts_per_gram = float(parts[3])
+            except ValueError:
+                return
+            if channel not in (1, 2):
+                return
+            with self._lock:
+                self._calibration_counts_per_gram[channel] = counts_per_gram
+                self._last_message_monotonic = now
+            self.events.put({
+                "type": "calibration",
+                "sequence": parts[1],
+                "channel": channel,
+                "counts_per_gram": counts_per_gram,
+            })
             return
 
         if message_type == "ACK" and len(parts) >= 2:

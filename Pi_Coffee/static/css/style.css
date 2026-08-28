@@ -175,12 +175,88 @@ input:disabled { opacity: .42; cursor: not-allowed; }
 }
 .command-message.error { color: #ef8787; }
 
+
+.scale-section { margin-bottom: 24px; }
+
+.total-weight-panel {
+  padding: 24px 28px;
+  background: #2b2f33;
+  border: 1px solid #3c4146;
+  border-radius: 18px;
+}
+
+.total-weight-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.total-weight {
+  display: inline-block;
+  font-size: clamp(76px, 12vw, 132px);
+  line-height: .92;
+  font-weight: 740;
+  letter-spacing: -4px;
+}
+
+.total-weight-unit {
+  display: inline-block;
+  margin-left: 10px;
+  color: #aab0b6;
+  font-size: 30px;
+  font-weight: 650;
+}
+
+.tare-button {
+  min-width: 150px;
+  min-height: 72px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 14px;
+  background: #e7e9ea;
+  color: #1b1d1f;
+  cursor: pointer;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.calibration-help {
+  margin: 0 0 16px;
+  color: #aab0b6;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.calibration-controls {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) auto auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.calibration-weight {
+  display: grid;
+  gap: 8px;
+  color: #c8cdd2;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.calibration-status {
+  margin-top: 14px;
+  color: #929aa1;
+  font-size: 12px;
+}
+
 @media (max-width: 700px) {
   .controller { padding: 18px; }
   .header { align-items: flex-start; flex-direction: column; }
   .load-cell-grid { grid-template-columns: 1fr; }
   .slider-row { grid-template-columns: 1fr; }
   .slider-controls { grid-template-columns: minmax(0, 1fr) 112px; }
+  .calibration-controls { grid-template-columns: 1fr 1fr; }
+  .calibration-weight { grid-column: 1 / -1; }
 }
 
 @media (max-width: 430px) {
@@ -190,4 +266,9 @@ input:disabled { opacity: .42; cursor: not-allowed; }
   .slider-controls { grid-template-columns: 1fr; }
   .number-wrap { width: 100%; justify-content: flex-end; }
   .toggle-button { width: 100%; }
+  .total-weight-row { align-items: stretch; flex-direction: column; }
+  .tare-button { width: 100%; }
+  .calibration-controls { grid-template-columns: 1fr; }
+  .calibration-weight { grid-column: auto; }
+  .calibration-controls .secondary-button { width: 100%; }
 }

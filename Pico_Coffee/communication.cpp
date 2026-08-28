@@ -89,6 +89,7 @@ void handle_command(char *line)
         char *sequence = strtok_r(nullptr, ",", &save);
         char *command = strtok_r(nullptr, ",", &save);
         char *target = strtok_r(nullptr, ",", &save);
+        char *argument = strtok_r(nullptr, ",", &save);
 
         if (!sequence || !command) {
             send_error(sequence, command, "BAD_FORMAT");
@@ -143,6 +144,59 @@ void handle_command(char *line)
                 return;
             }
 
+            send_ack(sequence);
+            return;
+        }
+
+        //
+        // Calibrate one HX711/load-cell channel using a known weight.
+        //
+        // Procedure:
+        //   1. Tare the empty scale.
+        //   2. Place a known weight on the selected scale.
+        //   3. Send: CMD,<sequence>,CALIBRATE,<channel>,<known_grams>
+        //
+        // Example:
+        //   CMD,60,CALIBRATE,1,500.0
+        //
+        if (std::strcmp(command, "CALIBRATE") == 0) {
+            if (!target || !argument) {
+                send_error(sequence, "CALIBRATE", "BAD_FORMAT");
+                return;
+            }
+
+            char *channel_end = nullptr;
+            const long channel_long = std::strtol(target, &channel_end, 10);
+
+            char *grams_end = nullptr;
+            const float known_grams = std::strtof(argument, &grams_end);
+
+            if (!channel_end || *channel_end != '\0' ||
+                !grams_end || *grams_end != '\0' ||
+                channel_long < 1 || channel_long > 2 ||
+                known_grams <= 0.0f) {
+                send_error(sequence, "CALIBRATE", "INVALID_ARGUMENT");
+                return;
+            }
+
+            float counts_per_gram = 0.0f;
+            char error[64] = {0};
+
+            if (!io_runtime_calibrate_load_cell(
+                    static_cast<uint8_t>(channel_long),
+                    known_grams,
+                    counts_per_gram,
+                    error,
+                    sizeof(error))) {
+                send_error(sequence, "CALIBRATE", error);
+                return;
+            }
+
+            std::printf(
+                "CAL,%s,%ld,%.6f\n",
+                sequence,
+                channel_long,
+                static_cast<double>(counts_per_gram));
             send_ack(sequence);
             return;
         }

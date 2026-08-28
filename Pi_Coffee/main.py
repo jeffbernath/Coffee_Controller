@@ -27,6 +27,10 @@ class IoWriteRequest(BaseModel):
     value: bool | int | float
 
 
+class LoadCellCalibrationRequest(BaseModel):
+    known_grams: float
+
+
 async def broadcast(message: dict[str, Any]) -> None:
     stale: list[WebSocket] = []
     for websocket in list(websockets):
@@ -76,9 +80,18 @@ async def io_manifest():
 @app.get("/api/status")
 async def status():
     snapshot = pico.snapshot()
-    # Keep weight_g for compatibility with the original GUI while the new GUI
-    # uses the generic io dictionary.
-    snapshot["weight_g"] = snapshot["io"].get("LOAD_CELL_1_G")
+
+    # Keep a combined weight value for the main scale display and for any
+    # clients that still use the original weight_g field.  Both load cells
+    # must be available before the total is considered valid.
+    load_cell_names = ("LOAD_CELL_1_G", "LOAD_CELL_2_G")
+    values = [snapshot["io"].get(name) for name in load_cell_names]
+    available = [snapshot["available"].get(name, False) for name in load_cell_names]
+    if all(available) and all(isinstance(value, (int, float)) for value in values):
+        snapshot["weight_g"] = float(values[0]) + float(values[1])
+    else:
+        snapshot["weight_g"] = None
+
     return snapshot
 
 
@@ -114,6 +127,38 @@ async def run_action(action_name: str):
         "requested": True,
         "sequence": sequence,
         "name": action_name
+    }
+
+
+@app.post("/api/tare")
+async def tare_scale():
+    try:
+        sequence = pico.tare_all()
+    except ConnectionError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return {"requested": True, "sequence": sequence}
+
+
+@app.post("/api/load-cell/{channel}/calibrate")
+async def calibrate_load_cell(channel: int, request: LoadCellCalibrationRequest):
+    if channel not in (1, 2):
+        raise HTTPException(status_code=400, detail="INVALID_LOAD_CELL_CHANNEL")
+    if request.known_grams <= 0:
+        raise HTTPException(status_code=400, detail="KNOWN_WEIGHT_MUST_BE_POSITIVE")
+
+    try:
+        sequence = pico.calibrate_load_cell(channel, request.known_grams)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ConnectionError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return {
+        "requested": True,
+        "sequence": sequence,
+        "channel": channel,
+        "known_grams": request.known_grams,
     }
 
 @app.websocket("/ws")

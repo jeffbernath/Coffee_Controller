@@ -9,7 +9,7 @@
 <body>
   <main class="controller">
     <header class="header">
-      <div>id="tare-button"
+      <div>
         <h1>Coffee Controller</h1>
         <p class="subtitle">Pico I/O Test Console</p>
       </div>
@@ -19,15 +19,57 @@
       </div>
     </header>
 
+    <section class="scale-section" aria-labelledby="scale-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">SCALE</p>
+          <h2 id="scale-title">Weight</h2>
+        </div>
+      </div>
+
+      <article class="total-weight-panel">
+        <div class="total-weight-row">
+          <div>
+            <div id="total-weight" class="total-weight">--</div>
+            <div class="total-weight-unit">g</div>
+          </div>
+          <button id="tare-button" class="tare-button" type="button" data-requires-pico="true" disabled>TARE</button>
+        </div>
+        <div id="total-weight-status" class="sensor-state">Waiting for both load cells</div>
+      </article>
+    </section>
+
     <section aria-labelledby="load-cells-title">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">INPUTS</p>
+          <p class="eyebrow">DIAGNOSTICS</p>
           <h2 id="load-cells-title">Load Cells</h2>
         </div>
         <div id="load-cell-actions"></div>
       </div>
       <div id="load-cell-grid" class="load-cell-grid"></div>
+    </section>
+
+    <section class="panel calibration-panel" aria-labelledby="calibration-title">
+      <div class="section-heading compact">
+        <div>
+          <p class="eyebrow">SETUP</p>
+          <h2 id="calibration-title">Calibration</h2>
+        </div>
+      </div>
+      <p class="calibration-help">Tare the empty scale first. Then place a known weight on the load cell being calibrated and enter that weight below.</p>
+      <div class="calibration-controls">
+        <label class="calibration-weight">
+          <span>Known weight</span>
+          <span class="number-wrap">
+            <input id="calibration-weight" type="number" min="0.1" step="0.1" value="500.0" data-requires-pico="true" disabled>
+            <span>g</span>
+          </span>
+        </label>
+        <button id="calibrate-cell-1" class="secondary-button" type="button" data-requires-pico="true" disabled>Calibrate Cell 1</button>
+        <button id="calibrate-cell-2" class="secondary-button" type="button" data-requires-pico="true" disabled>Calibrate Cell 2</button>
+      </div>
+      <div id="calibration-status" class="calibration-status">Calibration factors are stored in Pico RAM until power is removed.</div>
     </section>
 
     <section class="panel" aria-labelledby="outputs-title">

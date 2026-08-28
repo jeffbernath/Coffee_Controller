@@ -4,6 +4,13 @@ const loadCellGrid = document.getElementById("load-cell-grid");
 const outputControls = document.getElementById("output-controls");
 const inputStatus = document.getElementById("input-status");
 const commandMessage = document.getElementById("command-message");
+const totalWeightElement = document.getElementById("total-weight");
+const totalWeightStatusElement = document.getElementById("total-weight-status");
+const tareButton = document.getElementById("tare-button");
+const calibrationWeightInput = document.getElementById("calibration-weight");
+const calibrateCell1Button = document.getElementById("calibrate-cell-1");
+const calibrateCell2Button = document.getElementById("calibrate-cell-2");
+const calibrationStatusElement = document.getElementById("calibration-status");
 
 let manifest = null;
 let picoOnline = false;
@@ -17,6 +24,25 @@ function formatValue(definition, value) {
   if (definition.data_type === "bool") return value ? "ON" : "OFF";
   const decimals = definition.gui?.decimals ?? 1;
   return Number(value).toFixed(decimals);
+}
+
+function updateTotalWeight() {
+  const names = ["LOAD_CELL_1_G", "LOAD_CELL_2_G"];
+  const ready = names.every((name) =>
+    ioAvailable[name] === true && Number.isFinite(Number(ioState[name]))
+  );
+
+  if (!ready) {
+    totalWeightElement.textContent = "--";
+    totalWeightStatusElement.textContent = "Waiting for both calibrated load cells";
+    totalWeightStatusElement.classList.add("unavailable");
+    return;
+  }
+
+  const total = Number(ioState.LOAD_CELL_1_G) + Number(ioState.LOAD_CELL_2_G);
+  totalWeightElement.textContent = total.toFixed(2);
+  totalWeightStatusElement.textContent = "Live";
+  totalWeightStatusElement.classList.remove("unavailable");
 }
 
 function showMessage(message, isError = false) {
@@ -209,7 +235,7 @@ function buildUi() {
       definition.direction === "command" &&
       widget === "button"
     ) {
-      buildActionButton(definition);
+      if (definition.name !== "TARE_BOTH") buildActionButton(definition);
     } else if (definition.type === "load_cell" && definition.direction === "input") {
       buildLoadCell(definition);
     } else if (definition.direction === "input" && widget === "status") {
@@ -273,6 +299,10 @@ function updateIo(name, value, available = true) {
     if (slider) slider.value = value;
     if (number && document.activeElement !== number) number.value = value;
   }
+
+  if (name === "LOAD_CELL_1_G" || name === "LOAD_CELL_2_G") {
+    updateTotalWeight();
+  }
 }
 
 function applySnapshot(snapshot) {
@@ -326,6 +356,9 @@ function connectWebSocket() {
       updateIo(message.name, ioState[message.name], message.available);
     } else if (message.type === "command_error") {
       showMessage(`${message.target}: ${message.error}`, true);
+    } else if (message.type === "calibration") {
+      calibrationStatusElement.textContent = `Cell ${message.channel}: ${Number(message.counts_per_gram).toFixed(6)} counts/g`;
+      showMessage(`Load cell ${message.channel} calibrated.`);
     } else if (message.type === "ack") {
       showMessage(`Pico accepted command ${message.sequence}.`);
     }
@@ -366,6 +399,46 @@ async function requestAction(name) {
   }
 }
 
+async function requestTare() {
+  showMessage("Taring scale...");
+  try {
+    const response = await fetch("/api/tare", { method: "POST" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail ?? `HTTP ${response.status}`);
+    showMessage(`Tare request sent. Waiting for Pico confirmation (command ${data.sequence}).`);
+  } catch (error) {
+    showMessage(error.message ?? "Tare failed", true);
+  }
+}
+
+async function requestCalibration(channel) {
+  const knownGrams = Number(calibrationWeightInput.value);
+  if (!Number.isFinite(knownGrams) || knownGrams <= 0) {
+    showMessage("Enter a valid known calibration weight.", true);
+    return;
+  }
+
+  showMessage(`Calibrating load cell ${channel} with ${knownGrams.toFixed(1)} g...`);
+  try {
+    const response = await fetch(`/api/load-cell/${channel}/calibrate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ known_grams: knownGrams }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail ?? `HTTP ${response.status}`);
+    showMessage(`Calibration request sent for load cell ${channel} (command ${data.sequence}).`);
+  } catch (error) {
+    showMessage(error.message ?? `Load cell ${channel} calibration failed`, true);
+  }
+}
+
+function installScaleControls() {
+  tareButton.addEventListener("click", requestTare);
+  calibrateCell1Button.addEventListener("click", () => requestCalibration(1));
+  calibrateCell2Button.addEventListener("click", () => requestCalibration(2));
+}
+
 async function init() {
   const response = await fetch("/api/io/manifest");
   if (!response.ok) throw new Error(`Unable to load I/O manifest: HTTP ${response.status}`);
@@ -375,6 +448,8 @@ async function init() {
     ioAvailable[definition.name] = definition.type !== "load_cell";
   }
   buildUi();
+  installScaleControls();
+  updateTotalWeight();
   await refreshStatus();
   connectWebSocket();
   setInterval(refreshStatus, 2000);

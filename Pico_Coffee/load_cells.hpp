@@ -2,13 +2,18 @@
 
 #include <cstdint>
 
-// Communication-facing load-cell API. The communication stack does not need
-// to know whether the final hardware is HX711, NAU7802, or another ADC.
+// Load-cell abstraction used by io_runtime.
+//
+// Current hardware implementation: two HX711 ADCs.
+//   Channel 1: DOUT = GP2, SCK = GP3
+//   Channel 2: DOUT = GP4, SCK = GP5
+//
+// Tare is held in RAM. Calibration can be supplied below at compile time or
+// calculated at runtime with load_cell_calibrate(). Runtime calibration is
+// also held in RAM and therefore must be repeated after a power cycle unless
+// the compile-time counts/gram value is filled in.
+void load_cells_init();
+
 bool load_cell_read_grams(uint8_t channel, float &grams);
 bool load_cell_tare(uint8_t channel);
-
-// Hardware hooks. Add a strong implementation in the final ADC driver.
-// The weak defaults in load_cells.cpp return false so an unconfigured load
-// cell is never presented to the GUI as a real zero reading.
-bool coffee_load_cell_hw_read_grams(uint8_t channel, float &grams);
-bool coffee_load_cell_hw_tare(uint8_t channel);
+bool load_cell_calibrate(uint8_t channel, float known_grams, float &counts_per_gram);

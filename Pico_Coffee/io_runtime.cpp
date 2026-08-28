@@ -241,6 +241,8 @@ bool apply_special_output(const IoDefinition &definition, float value)
 
 void io_runtime_init()
 {
+    load_cells_init();
+
     for (std::size_t i = 0; i < IO_DEFINITION_COUNT; ++i) {
         g_first_poll[i] = true;
         const IoDefinition &definition = IO_DEFINITIONS[i];
@@ -390,6 +392,32 @@ bool io_runtime_tare_all(char *error, std::size_t error_size)
         copy_error(error, error_size, "LOAD_CELL_DRIVER_UNAVAILABLE");
         return false;
     }
+    return true;
+}
+
+
+bool io_runtime_calibrate_load_cell(
+    uint8_t channel,
+    float known_grams,
+    float &counts_per_gram,
+    char *error,
+    std::size_t error_size)
+{
+    if (channel < 1 || channel > 2) {
+        copy_error(error, error_size, "INVALID_LOAD_CELL_CHANNEL");
+        return false;
+    }
+
+    if (!std::isfinite(known_grams) || known_grams <= 0.0f) {
+        copy_error(error, error_size, "INVALID_CALIBRATION_WEIGHT");
+        return false;
+    }
+
+    if (!load_cell_calibrate(channel, known_grams, counts_per_gram)) {
+        copy_error(error, error_size, "CALIBRATION_FAILED_TARE_FIRST");
+        return false;
+    }
+
     return true;
 }
 
