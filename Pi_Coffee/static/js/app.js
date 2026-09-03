@@ -1,6 +1,7 @@
 const picoStatusElement = document.getElementById("pico-status");
 const picoIndicatorElement = document.getElementById("pico-indicator");
 const loadCellGrid = document.getElementById("load-cell-grid");
+const temperatureGrid = document.getElementById("temperature-grid");
 const outputControls = document.getElementById("output-controls");
 const inputStatus = document.getElementById("input-status");
 const commandMessage = document.getElementById("command-message");
@@ -317,6 +318,30 @@ function formatValue(definition, value) {
   return Number(value).toFixed(decimals);
 }
 
+function unavailableText(definition) {
+  if (definition.type === "load_cell") return "Waiting for scale calibration";
+  if (definition.driver === "max31865") return "RTD unavailable - check wiring";
+  return "Unavailable";
+}
+
+function max31865FaultText(value) {
+  const code = Number(value);
+  if (!Number.isFinite(code)) return "--";
+  const byte = Math.max(0, Math.min(255, Math.trunc(code)));
+  if (byte === 0) return "OK";
+
+  const faults = [];
+  if (byte & 0x80) faults.push("RTD HIGH");
+  if (byte & 0x40) faults.push("RTD LOW");
+  if (byte & 0x20) faults.push("REFIN HIGH");
+  if (byte & 0x10) faults.push("REFIN LOW");
+  if (byte & 0x08) faults.push("RTDIN LOW");
+  if (byte & 0x04) faults.push("OV/UV");
+
+  const label = faults.length ? faults.join(" / ") : "FAULT";
+  return `${label} (0x${byte.toString(16).toUpperCase().padStart(2, "0")})`;
+}
+
 function updateTotalWeight() {
   const names = ["LOAD_CELL_1_G", "LOAD_CELL_2_G"];
   const ready = names.every((name) =>
@@ -379,6 +404,92 @@ function buildLoadCell(definition) {
 
   card.append(label, value, unit, state);
   loadCellGrid.appendChild(card);
+}
+
+function buildTemperatureSensor(definition) {
+  const card = document.createElement("article");
+  card.className = "temperature-card primary";
+
+  const label = document.createElement("div");
+  label.className = "temperature-label";
+  label.textContent = definition.gui?.label ?? definition.name;
+
+  const valueRow = document.createElement("div");
+  valueRow.className = "temperature-value-row";
+
+  const value = document.createElement("div");
+  value.className = "temperature-value";
+  value.dataset.ioValue = definition.name;
+  value.textContent = "--";
+
+  const unit = document.createElement("div");
+  unit.className = "temperature-unit";
+  unit.textContent = definition.units ?? "°C";
+  valueRow.append(value, unit);
+
+  const fahrenheit = document.createElement("div");
+  fahrenheit.className = "temperature-secondary";
+  fahrenheit.dataset.temperatureF = definition.name;
+  fahrenheit.textContent = "-- °F";
+
+  const state = document.createElement("div");
+  state.className = "sensor-state";
+  state.dataset.ioAvailability = definition.name;
+  state.textContent = "Waiting for Pico";
+
+  card.append(label, valueRow, fahrenheit, state);
+  temperatureGrid.appendChild(card);
+}
+
+function buildSensorValue(definition) {
+  const card = document.createElement("article");
+  card.className = "temperature-card";
+
+  const label = document.createElement("div");
+  label.className = "temperature-label";
+  label.textContent = definition.gui?.label ?? definition.name;
+
+  const valueRow = document.createElement("div");
+  valueRow.className = "diagnostic-value-row";
+  const value = document.createElement("div");
+  value.className = "diagnostic-value";
+  value.dataset.ioValue = definition.name;
+  value.textContent = "--";
+  const unit = document.createElement("span");
+  unit.className = "diagnostic-unit";
+  unit.textContent = definition.units ?? "";
+  valueRow.append(value, unit);
+
+  const state = document.createElement("div");
+  state.className = "sensor-state";
+  state.dataset.ioAvailability = definition.name;
+  state.textContent = "Waiting for Pico";
+
+  card.append(label, valueRow, state);
+  temperatureGrid.appendChild(card);
+}
+
+function buildFaultStatus(definition) {
+  const card = document.createElement("article");
+  card.className = "temperature-card";
+
+  const label = document.createElement("div");
+  label.className = "temperature-label";
+  label.textContent = definition.gui?.label ?? definition.name;
+
+  const value = document.createElement("div");
+  value.className = "fault-status unknown";
+  value.dataset.ioValue = definition.name;
+  value.dataset.faultStatus = definition.name;
+  value.textContent = "--";
+
+  const state = document.createElement("div");
+  state.className = "sensor-state";
+  state.dataset.ioAvailability = definition.name;
+  state.textContent = "Waiting for Pico";
+
+  card.append(label, value, state);
+  temperatureGrid.appendChild(card);
 }
 
 function buildDigitalInput(definition) {
@@ -515,6 +626,7 @@ function buildActionButton(definition) {
 
 function buildUi() {
   loadCellGrid.replaceChildren();
+  temperatureGrid.replaceChildren();
   outputControls.replaceChildren();
   inputStatus.replaceChildren();
 
@@ -529,6 +641,12 @@ function buildUi() {
       if (definition.name !== "TARE_BOTH") buildActionButton(definition);
     } else if (definition.type === "load_cell" && definition.direction === "input") {
       buildLoadCell(definition);
+    } else if (definition.direction === "input" && widget === "temperature") {
+      buildTemperatureSensor(definition);
+    } else if (definition.direction === "input" && widget === "sensor_value") {
+      buildSensorValue(definition);
+    } else if (definition.direction === "input" && widget === "fault_status") {
+      buildFaultStatus(definition);
     } else if (definition.direction === "input" && widget === "status") {
       buildDigitalInput(definition);
     } else if (definition.direction === "output" && widget === "toggle") {
@@ -551,11 +669,17 @@ function updateIo(name, value, available = true) {
     if (!available) {
       element.textContent = "--";
       element.classList.add("unknown");
-      element.classList.remove("active");
+      element.classList.remove("active", "fault", "ok");
       return;
     }
 
-    if (definition.data_type === "bool") {
+    if (definition.gui?.widget === "fault_status") {
+      const code = Number(value);
+      element.textContent = max31865FaultText(code);
+      element.classList.toggle("fault", Number.isFinite(code) && code !== 0);
+      element.classList.toggle("ok", Number.isFinite(code) && code === 0);
+      element.classList.remove("unknown");
+    } else if (definition.data_type === "bool") {
       const trueText = definition.gui?.true_text ?? "ON";
       const falseText = definition.gui?.false_text ?? "OFF";
       element.textContent = value ? trueText : falseText;
@@ -563,11 +687,12 @@ function updateIo(name, value, available = true) {
       element.classList.remove("unknown");
     } else {
       element.textContent = formatValue(definition, value);
+      element.classList.remove("unknown");
     }
   });
 
   document.querySelectorAll(`[data-io-availability='${name}']`).forEach((element) => {
-    element.textContent = available ? "Live" : "Waiting for scale calibration";
+    element.textContent = available ? "Live" : unavailableText(definition);
     element.classList.toggle("unavailable", !available);
   });
 
@@ -589,6 +714,17 @@ function updateIo(name, value, available = true) {
   if (available && value !== null && value !== undefined) {
     if (slider) slider.value = value;
     if (number && document.activeElement !== number) number.value = value;
+  }
+
+  if (name === "BOILER_TEMP_C") {
+    document.querySelectorAll(`[data-temperature-f='${name}']`).forEach((element) => {
+      if (!available || !Number.isFinite(Number(value))) {
+        element.textContent = "-- °F";
+      } else {
+        const fahrenheit = Number(value) * 9 / 5 + 32;
+        element.textContent = `${fahrenheit.toFixed(1)} °F`;
+      }
+    });
   }
 
   if (name === "LOAD_CELL_1_G" || name === "LOAD_CELL_2_G") {
@@ -735,7 +871,7 @@ async function init() {
   manifest = await response.json();
   for (const definition of manifest.io) {
     ioState[definition.name] = null;
-    ioAvailable[definition.name] = definition.type !== "load_cell";
+    ioAvailable[definition.name] = definition.type !== "load_cell" && definition.driver !== "max31865";
   }
   buildUi();
   installScaleControls();

@@ -39,7 +39,7 @@ class PicoManager:
         self._io: dict[str, Any] = {item["name"]: None for item in registry.items}
         self._available: dict[str, bool] = {item["name"]: True for item in registry.items}
         for item in registry.items:
-            if item.get("type") == "load_cell":
+            if item.get("type") == "load_cell" or item.get("driver") == "max31865":
                 self._available[item["name"]] = False
 
         self._timeout_seconds = float(registry.serial.get("offline_timeout_ms", 5000)) / 1000.0

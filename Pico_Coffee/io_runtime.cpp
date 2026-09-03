@@ -168,24 +168,39 @@ void poll_digital_input(const IoDefinition &definition, RuntimeValue &runtime, b
     }
 }
 
-void poll_load_cell(const IoDefinition &definition, RuntimeValue &runtime, uint32_t now_ms)
+void poll_load_cell(
+    const IoDefinition &definition,
+    RuntimeValue &runtime,
+    uint32_t now_ms,
+    bool scale_available,
+    float cell_1_grams,
+    float cell_2_grams)
 {
-    if (definition.sample_rate_ms > 0 && now_ms - runtime.last_sample_ms < definition.sample_rate_ms) {
+    if (definition.sample_rate_ms > 0 &&
+        now_ms - runtime.last_sample_ms < definition.sample_rate_ms) {
         return;
     }
     runtime.last_sample_ms = now_ms;
 
-    float grams = 0.0f;
-    if (!load_cell_read_grams(static_cast<uint8_t>(definition.channel), grams)) {
+    if (!scale_available ||
+        (definition.channel != 1 && definition.channel != 2)) {
         runtime.valid = false;
         return;
     }
 
+    const float grams =
+        definition.channel == 1 ? cell_1_grams : cell_2_grams;
+
     runtime.value = grams;
     runtime.valid = true;
 
-    const uint32_t report_ms = definition.report_rate_ms > 0 ? definition.report_rate_ms : definition.sample_rate_ms;
-    if (report_ms == 0 || now_ms - runtime.last_report_ms >= report_ms) {
+    const uint32_t report_ms =
+        definition.report_rate_ms > 0
+            ? definition.report_rate_ms
+            : definition.sample_rate_ms;
+
+    if (report_ms == 0 ||
+        now_ms - runtime.last_report_ms >= report_ms) {
         communication_send_io(definition, grams);
         runtime.last_report_ms = now_ms;
     }
@@ -298,6 +313,13 @@ void io_runtime_poll()
 {
     const uint32_t now_ms = to_ms_since_boot(get_absolute_time());
 
+    // Read both HX711 channels together so their reported values always come
+    // from the same stabilized combined-scale calculation.
+    float cell_1_grams = 0.0f;
+    float cell_2_grams = 0.0f;
+    const bool scale_available =
+        load_cells_read_stabilized_pair(cell_1_grams, cell_2_grams);
+
     for (std::size_t i = 0; i < IO_DEFINITION_COUNT; ++i) {
         const IoDefinition &definition = IO_DEFINITIONS[i];
         RuntimeValue &runtime = g_values[i];
@@ -308,8 +330,15 @@ void io_runtime_poll()
 
         if (definition.type == IoType::DIGITAL && std::strcmp(definition.handler, "gpio") == 0) {
             poll_digital_input(definition, runtime, g_first_poll[i], now_ms);
-        } else if (definition.type == IoType::LOAD_CELL && std::strcmp(definition.handler, "load_cell") == 0) {
-            poll_load_cell(definition, runtime, now_ms);
+        } else if (definition.type == IoType::LOAD_CELL &&
+                   std::strcmp(definition.handler, "load_cell") == 0) {
+            poll_load_cell(
+                definition,
+                runtime,
+                now_ms,
+                scale_available,
+                cell_1_grams,
+                cell_2_grams);
         }
 
         g_first_poll[i] = false;

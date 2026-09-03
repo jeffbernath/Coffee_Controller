@@ -47,12 +47,13 @@ add_executable(Pico_Coffee
     communication.cpp
     io_runtime.cpp
     load_cells.cpp
+    max31865.cpp
     ${IO_GENERATED_HEADER}
 )
 add_dependencies(Pico_Coffee generate_io_manifest)
 
 pico_set_program_name(Pico_Coffee "Pico_Coffee")
-pico_set_program_version(Pico_Coffee "0.2.0")
+pico_set_program_version(Pico_Coffee "0.3.0")
 
 pico_enable_stdio_uart(Pico_Coffee 0)
 pico_enable_stdio_usb(Pico_Coffee 1)
@@ -68,6 +69,7 @@ target_link_libraries(Pico_Coffee
     hardware_flash
     hardware_pwm
     hardware_clocks
+    hardware_spi
 )
 
 pico_add_extra_outputs(Pico_Coffee)

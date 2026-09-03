@@ -154,6 +154,71 @@
         "widget": "button",
         "show": true
       }
+    },
+    {
+      "id": 8,
+      "name": "BOILER_TEMP_C",
+      "type": "analog",
+      "direction": "input",
+      "data_type": "float",
+      "units": "°C",
+      "sample_rate_ms": 250,
+      "report_rate_ms": 500,
+      "report": "periodic",
+      "driver": "max31865",
+      "min": -200.0,
+      "max": 850.0,
+      "gui": {
+        "label": "Boiler Temperature",
+        "group": "temperature",
+        "widget": "temperature",
+        "decimals": 1,
+        "show": true
+      },
+      "handler": "max31865_temperature"
+    },
+    {
+      "id": 9,
+      "name": "BOILER_RTD_OHMS",
+      "type": "analog",
+      "direction": "input",
+      "data_type": "float",
+      "units": "Ω",
+      "sample_rate_ms": 250,
+      "report_rate_ms": 500,
+      "report": "periodic",
+      "driver": "max31865",
+      "min": 0.0,
+      "max": 500.0,
+      "gui": {
+        "label": "RTD Resistance",
+        "group": "temperature",
+        "widget": "sensor_value",
+        "decimals": 2,
+        "show": true
+      },
+      "handler": "max31865_resistance"
+    },
+    {
+      "id": 10,
+      "name": "BOILER_RTD_FAULT",
+      "type": "analog",
+      "direction": "input",
+      "data_type": "int",
+      "sample_rate_ms": 250,
+      "report_rate_ms": 500,
+      "report": "periodic",
+      "driver": "max31865",
+      "min": 0,
+      "max": 255,
+      "gui": {
+        "label": "MAX31865 Status",
+        "group": "temperature",
+        "widget": "fault_status",
+        "decimals": 0,
+        "show": true
+      },
+      "handler": "max31865_fault"
     }
   ]
 }

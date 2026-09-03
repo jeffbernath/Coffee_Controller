@@ -13,6 +13,12 @@
 // raw readings while a known weight is on the platform.
 void load_cells_init();
 
+// Reads a synchronized pair whose sum is the stabilized total scale weight.
+bool load_cells_read_stabilized_pair(float &cell_1_grams, float &cell_2_grams);
+
+// Backward-compatible single-channel accessor. Values come from the same
+// stabilized pair used by load_cells_read_stabilized_pair().
 bool load_cell_read_grams(uint8_t channel, float &grams);
+
 bool load_cell_tare(uint8_t channel);
 bool load_cells_calibrate_scale(float known_grams, float &counts_per_gram);
