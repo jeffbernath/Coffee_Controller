@@ -42,8 +42,19 @@ constexpr uint8_t CONFIG_CONTINUOUS_3WIRE_60HZ =
     CONFIG_BIAS | CONFIG_AUTO | CONFIG_3WIRE | CONFIG_FILTER_60HZ;
 
 bool g_initialized = false;
+bool g_spi_pins_initialized = false;
+uint8_t g_init_diagnostic = 0;
+uint32_t g_last_init_attempt_ms = 0;
 uint32_t g_last_fault_cycle_ms = 0;
+constexpr uint32_t INIT_RETRY_INTERVAL_MS = 1000;
 constexpr uint32_t FAULT_CYCLE_INTERVAL_MS = 5000;
+
+// Software-only diagnostic values. The MAX31865 Fault Status register uses
+// bits D7:D2; D1:D0 are always zero, so 0x01..0x03 cannot collide with a
+// real MAX31865 hardware fault code.
+constexpr uint8_t DIAG_SPI_READ_00 = 0x01;
+constexpr uint8_t DIAG_SPI_READ_FF = 0x02;
+constexpr uint8_t DIAG_CONFIG_MISMATCH = 0x03;
 
 void select_chip()
 {
@@ -107,6 +118,47 @@ void write_threshold(uint8_t msb_register, float resistance_ohms)
     write_register(static_cast<uint8_t>(msb_register + 1u), static_cast<uint8_t>(threshold & 0xFFu));
 }
 
+
+bool configure_sensor()
+{
+    g_last_init_attempt_ms = to_ms_since_boot(get_absolute_time());
+
+    // Configure broad PT100 physical-range thresholds so open/short conditions
+    // produce a useful fault indication without limiting normal boiler readings.
+    write_threshold(REG_LOW_FAULT_MSB, 15.0f);
+    write_threshold(REG_HIGH_FAULT_MSB, 410.0f);
+
+    write_register(REG_CONFIG, CONFIG_CONTINUOUS_3WIRE_60HZ | CONFIG_CLEAR_FAULT);
+
+    // VBIAS startup can require up to 10 ms; allow a full conversion as well.
+    sleep_ms(70);
+
+    const uint8_t config = read_register(REG_CONFIG);
+    if (config == 0x00u) {
+        g_init_diagnostic = DIAG_SPI_READ_00;
+        g_initialized = false;
+        return false;
+    }
+    if (config == 0xFFu) {
+        g_init_diagnostic = DIAG_SPI_READ_FF;
+        g_initialized = false;
+        return false;
+    }
+
+    const uint8_t expected = CONFIG_CONTINUOUS_3WIRE_60HZ;
+    const uint8_t mask = CONFIG_BIAS | CONFIG_AUTO | CONFIG_3WIRE | 0x01u;
+    if ((config & mask) != expected) {
+        g_init_diagnostic = DIAG_CONFIG_MISMATCH;
+        g_initialized = false;
+        return false;
+    }
+
+    g_init_diagnostic = 0;
+    g_initialized = true;
+    g_last_fault_cycle_ms = 0;
+    return true;
+}
+
 float pt100_temperature_from_resistance(float resistance_ohms)
 {
     // Above 0 C, the C term is zero and the equation can be solved directly.
@@ -156,30 +208,48 @@ void max31865_init()
     gpio_set_dir(MAX31865_CS_PIN, GPIO_OUT);
     gpio_put(MAX31865_CS_PIN, 1);
 
+    g_spi_pins_initialized = true;
     sleep_ms(5);
-
-    // Configure broad PT100 physical-range thresholds so open/short conditions
-    // produce a useful fault indication without limiting normal boiler readings.
-    write_threshold(REG_LOW_FAULT_MSB, 15.0f);
-    write_threshold(REG_HIGH_FAULT_MSB, 410.0f);
-
-    write_register(REG_CONFIG, CONFIG_CONTINUOUS_3WIRE_60HZ | CONFIG_CLEAR_FAULT);
-
-    // VBIAS startup can require up to 10 ms; the first continuous conversion
-    // then takes approximately one single-conversion period.
-    sleep_ms(70);
-
-    const uint8_t config = read_register(REG_CONFIG);
-    g_initialized = (config & (CONFIG_BIAS | CONFIG_AUTO | CONFIG_3WIRE | 0x01u)) ==
-                    CONFIG_CONTINUOUS_3WIRE_60HZ;
+    configure_sensor();
 }
 
 bool max31865_read(Max31865Reading &reading)
 {
     reading = {};
 
+    if (!g_spi_pins_initialized) {
+        max31865_init();
+    }
+
+    const uint32_t now_ms = to_ms_since_boot(get_absolute_time());
     if (!g_initialized) {
-        return false;
+        if (g_last_init_attempt_ms == 0 ||
+            now_ms - g_last_init_attempt_ms >= INIT_RETRY_INTERVAL_MS) {
+            configure_sensor();
+        }
+
+        if (!g_initialized) {
+            // Return a software diagnostic through the existing fault channel so
+            // the GUI no longer collapses every SPI/init failure into "check wiring".
+            reading.fault = g_init_diagnostic;
+            reading.valid = false;
+            return true;
+        }
+    }
+
+    // Verify the configuration is still readable. This also lets the firmware
+    // recover automatically if the MAX31865 is unplugged and reconnected.
+    const uint8_t config = read_register(REG_CONFIG);
+    const uint8_t expected = CONFIG_CONTINUOUS_3WIRE_60HZ;
+    const uint8_t mask = CONFIG_BIAS | CONFIG_AUTO | CONFIG_3WIRE | 0x01u;
+    if (config == 0x00u || config == 0xFFu || (config & mask) != expected) {
+        g_initialized = false;
+        g_init_diagnostic = config == 0x00u ? DIAG_SPI_READ_00
+                           : config == 0xFFu ? DIAG_SPI_READ_FF
+                                             : DIAG_CONFIG_MISMATCH;
+        reading.fault = g_init_diagnostic;
+        reading.valid = false;
+        return true;
     }
 
     uint8_t rtd_bytes[2] = {0, 0};
@@ -196,7 +266,6 @@ bool max31865_read(Max31865Reading &reading)
     // current conversion is captured first, then continuous conversion is
     // restarted. By the next 250 ms application sample, a fresh conversion is
     // ready.
-    const uint32_t now_ms = to_ms_since_boot(get_absolute_time());
     if (g_last_fault_cycle_ms == 0 ||
         now_ms - g_last_fault_cycle_ms >= FAULT_CYCLE_INTERVAL_MS) {
         g_last_fault_cycle_ms = now_ms;
