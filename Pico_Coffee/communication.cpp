@@ -1,5 +1,6 @@
 #include "communication.hpp"
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -333,6 +334,16 @@ void communication_send_io(
             "IO,%s,%d\n",
             definition.name,
             value >= 0.5f ? 1 : 0);
+
+    } else if (definition.data_type &&
+               std::strcmp(
+                   definition.data_type,
+                   "int") == 0) {
+
+        std::printf(
+            "IO,%s,%d\n",
+            definition.name,
+            static_cast<int>(std::lround(value)));
 
     } else {
 

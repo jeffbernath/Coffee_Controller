@@ -28,7 +28,9 @@ class IoRegistry:
         if data_type == "bool":
             return value.strip().lower() in {"1", "true", "on"}
         if data_type == "int":
-            return int(value)
+            # Accept both canonical integer wire values ("3") and legacy
+            # float-formatted integer values ("3.000").
+            return int(float(value))
         if data_type == "float":
             return float(value)
         return value
