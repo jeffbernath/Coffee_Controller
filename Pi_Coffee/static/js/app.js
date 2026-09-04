@@ -866,7 +866,7 @@ function installScaleControls() {
 }
 
 async function init() {
-  const response = await fetch("/api/io/manifest");
+  const response = await fetch("/api/io/manifest", { cache: "no-store" });
   if (!response.ok) throw new Error(`Unable to load I/O manifest: HTTP ${response.status}`);
   manifest = await response.json();
   for (const definition of manifest.io) {
