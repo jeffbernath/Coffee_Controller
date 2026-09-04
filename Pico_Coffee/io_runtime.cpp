@@ -15,6 +15,7 @@
 #include "io_manifest.h"
 #include "load_cells.hpp"
 #include "max31865.hpp"
+#include "scale_display.hpp"
 
 namespace {
 
@@ -319,6 +320,7 @@ void io_runtime_init()
 {
     load_cells_init();
     max31865_init();
+    scale_display_init();
 
     for (std::size_t i = 0; i < IO_DEFINITION_COUNT; ++i) {
         g_first_poll[i] = true;
@@ -375,12 +377,23 @@ void io_runtime_poll()
 {
     const uint32_t now_ms = to_ms_since_boot(get_absolute_time());
 
+    // The physical scale tare button is local-only. It intentionally does not
+    // add a manifest entry or require any GUI changes.
+    if (scale_tare_button_pressed()) {
+        char tare_error[64] = {};
+        (void)io_runtime_tare_all(tare_error, sizeof(tare_error));
+    }
+
     // Read both HX711 channels together so their reported values always come
     // from the same stabilized combined-scale calculation.
     float cell_1_grams = 0.0f;
     float cell_2_grams = 0.0f;
     const bool scale_available =
         load_cells_read_stabilized_pair(cell_1_grams, cell_2_grams);
+
+    scale_display_update(
+        scale_available,
+        scale_available ? (cell_1_grams + cell_2_grams) : 0.0f);
 
     // Sample the MAX31865 at 4 Hz, then share the cached reading across all
     // three manifest values. This avoids unnecessary SPI traffic in the 1 ms

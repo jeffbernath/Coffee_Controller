@@ -48,6 +48,7 @@ add_executable(Pico_Coffee
     io_runtime.cpp
     load_cells.cpp
     max31865.cpp
+    scale_display.cpp
     ${IO_GENERATED_HEADER}
 )
 add_dependencies(Pico_Coffee generate_io_manifest)
